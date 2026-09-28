@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import type { Context } from 'hono'
 
 const app = new Hono<{ Bindings: CloudflareBindings }>()
 
@@ -7,17 +8,13 @@ app.get('/', (c) => {
 })
 
 // 動作確認用エンドポイント: リクエスト/レスポンスの内容を標準出力に出す
-// 返すステータスを切り替えたいときは、下の STATUS / ERROR_MESSAGE のコメントアウトを入れ替える
-const STATUS = 200 as 200 | 400 | 500
-// const STATUS = 400 as 200 | 400 | 500
-// const STATUS = 500 as 200 | 400 | 500
-
-const ERROR_MESSAGE: Record<number, string> = {
+// /echo_200, /echo_400, /echo_500 でそれぞれのステータスを返す
+const ERROR_MESSAGE = {
   400: 'Bad Request',
   500: 'Internal Server Error',
-}
+} as const
 
-app.post('/echo', async (c) => {
+const echo = async (c: Context, status: 200 | 400 | 500) => {
   const contentType = c.req.header('content-type') ?? ''
   const rawBody = await c.req.text()
 
@@ -43,7 +40,7 @@ app.post('/echo', async (c) => {
   console.log(JSON.stringify(request, null, 2))
 
   const response = {
-    ...(STATUS === 200 ? {} : { error: ERROR_MESSAGE[STATUS] }),
+    ...(status === 200 ? {} : { error: ERROR_MESSAGE[status] }),
     receivedAt: new Date().toISOString(),
     request,
   }
@@ -51,7 +48,11 @@ app.post('/echo', async (c) => {
   console.log('--- response ---')
   console.log(JSON.stringify(response, null, 2))
 
-  return c.json(response, STATUS)
-})
+  return c.json(response, status)
+}
+
+app.post('/echo_200', (c) => echo(c, 200))
+app.post('/echo_400', (c) => echo(c, 400))
+app.post('/echo_500', (c) => echo(c, 500))
 
 export default app
